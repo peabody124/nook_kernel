@@ -127,15 +127,19 @@
  */
 
 /* define to activate power management */
+/*
 #define CY_USE_LOW_POWER
+ */
 
 /* define if wake on i2c addr is activated */
+/*
 #define CY_USE_DEEP_SLEEP
+ */
 
 /* define if gesture signaling is used
  * and which gesture groups to use
  */
-//#define CY_USE_GEST
+#define CY_USE_GEST
 // #define CY_USE_GEST_GRP1
 #define CY_USE_GEST_GRP2
 #define CY_USE_GEST_GRP3
@@ -144,7 +148,7 @@
 /* Active distance in pixels for a gesture to be reported
  * if set to 0, then all gesture movements are reported
  */
-#define CY_ACT_DIST_DFLT	0
+#define CY_ACT_DIST_DFLT	1
 #define CY_ACT_DIST			CY_ACT_DIST_DFLT
 
 /* define if MT signals are desired */
@@ -158,7 +162,9 @@
  */
 
 /* define if ST signals are required */
+/*
 #define CY_USE_ST_SIGNALS
+*/
 
 /* define to send handshake to device */
 /*
