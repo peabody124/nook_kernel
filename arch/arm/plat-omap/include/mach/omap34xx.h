@@ -134,6 +134,9 @@
 /* MPU speeds */
 #define S1200M  1200000000
 #define S1000M  1000000000
+#define S950M   950000000
+#define S925M   925000000
+#define S900M   900000000
 #define S800M   800000000
 #define S720M   720000000
 #define S600M   600000000

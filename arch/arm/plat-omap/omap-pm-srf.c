@@ -413,7 +413,7 @@ u8 omap_pm_get_max_vdd1_opp()
 {
 
   if (cpu_is_omap3621())
-    return VDD1_OPP3;
+    return VDD1_OPP4;
 	else if (cpu_is_omap3630()) {
 		switch (omap_rev_id()) {
 		case OMAP_3630:
