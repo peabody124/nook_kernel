@@ -14,20 +14,9 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-
-/*
- *  ======== windows.h ========
- *
- *! Revision History
- *! ================
- *! 08-Mar-2004 sb Added cacheflush.h to support Dynamic Memory Mapping feature
- *! 16-Feb-2004 sb Added headers required for consistent_alloc
- */
-
 #ifndef _HOST_OS_H_
 #define _HOST_OS_H_
 
-#include <linux/autoconf.h>
 #include <asm/system.h>
 #include <asm/atomic.h>
 #include <linux/semaphore.h>
@@ -53,40 +42,28 @@
 #include <linux/vmalloc.h>
 #include <linux/ioport.h>
 #include <linux/platform_device.h>
-#include <dspbridge/dbtype.h>
-#include <mach/clock.h>
+#include <plat/clock.h>
 #include <linux/clk.h>
+#include <plat/mailbox.h>
 #include <linux/pagemap.h>
 #include <asm/cacheflush.h>
 #include <linux/dma-mapping.h>
 
 /* TODO -- Remove, once BP defines them */
-#define INT_MAIL_MPU_IRQ        26
 #define INT_DSP_MMU_IRQ        28
-
-struct dspbridge_platform_data {
-	void 	(*dsp_set_min_opp)(u8 opp_id);
-	u8 	(*dsp_get_opp)(void);
-	void 	(*cpu_set_freq)(unsigned long f);
-	unsigned long (*cpu_get_freq)(void);
-	struct omap_opp *(*dsp_get_rate_table)(void);
-	struct omap_opp *(*mpu_get_rate_table)(void);
-	struct omap_opp *mpu_rate_table;
-
-	u32 phys_mempool_base;
-	u32 phys_mempool_size;
-};
 
 #define PRCM_VDD1 1
 
 extern struct platform_device *omap_dspbridge_dev;
+extern struct device *bridge;
 
-#if defined(CONFIG_MPU_BRIDGE) || defined(CONFIG_MPU_BRIDGE_MODULE)
+#if defined(CONFIG_TIDSPBRIDGE) || defined(CONFIG_TIDSPBRIDGE_MODULE)
 extern void dspbridge_reserve_sdram(void);
 #else
-static inline void dspbridge_reserve_sdram(void) {}
+static inline void dspbridge_reserve_sdram(void)
+{
+}
 #endif
 
 extern unsigned long dspbridge_get_mempool_base(void);
 #endif
-

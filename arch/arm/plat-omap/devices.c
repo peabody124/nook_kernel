@@ -90,15 +90,14 @@ EXPORT_SYMBOL(dsp_kfunc_device_register);
 static inline void omap_init_dsp(void) { }
 #endif	/* CONFIG_OMAP_DSP */
 
-#if defined(CONFIG_MPU_BRIDGE) ||  defined(CONFIG_MPU_BRIDGE_MODULE)
+#if defined(CONFIG_TIDSPBRIDGE) || defined(CONFIG_TIDSPBRIDGE_MODULE)
 
 static unsigned long dspbridge_phys_mempool_base;
 
 void dspbridge_reserve_sdram(void)
 {
 	void *va;
-	unsigned long size = CONFIG_BRIDGE_MEMPOOL_SIZE;
-
+	unsigned long size = CONFIG_TIDSPBRIDGE_MEMPOOL_SIZE;
 	if (!size)
 		return;
 

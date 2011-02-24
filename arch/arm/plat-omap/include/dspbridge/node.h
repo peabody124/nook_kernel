@@ -3,6 +3,8 @@
  *
  * DSP-BIOS Bridge driver support functions for TI OMAP processors.
  *
+ * DSP/BIOS Bridge Node Manager.
+ *
  * Copyright (C) 2005-2006 Texas Instruments, Inc.
  *
  * This package is free software; you can redistribute it and/or modify
@@ -12,52 +14,6 @@
  * THIS PACKAGE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
- */
-
-
-/*
- *  ======== node.h ========
- *  Description:
- *      DSP/BIOS Bridge Node Manager.
- *
- *  Public Functions:
- *      NODE_Allocate
- *      NODE_AllocMsgBuf
- *      NODE_ChangePriority
- *      NODE_Connect
- *      NODE_Create
- *      NODE_CreateMgr
- *      NODE_Delete
- *      NODE_DeleteMgr
- *      NODE_EnumNodes
- *      NODE_Exit
- *      NODE_FreeMsgBuf
- *      NODE_GetAttr
- *      NODE_GetMessage
- *      NODE_GetProcessor
- *      NODE_Init
- *      NODE_OnExit
- *      NODE_Pause
- *      NODE_PutMessage
- *      NODE_RegisterNotify
- *      NODE_Run
- *      NODE_Terminate
- *
- *  Notes:
- *
- *! Revision History:
- *! =================
- *! 23-Apr-2001 jeh     Updated with code review changes.
- *! 16-Jan-2001 jeh     Added DSP_ESYMBOL, DSP_EUUID to return codes.
- *! 17-Nov-2000 jeh     Added NODE_OnExit().
- *! 27-Oct-2000 jeh     Added timeouts to NODE_GetMessage, NODE_PutMessage.
- *! 12-Oct-2000 jeh     Changed NODE_EnumNodeInfo to NODE_EnumNodes. Removed
- *!                     NODE_RegisterAllNodes().
- *! 07-Sep-2000 jeh     Changed type HANDLE in NODE_RegisterNotify to
- *!                     DSP_HNOTIFICATION. Added DSP_STRMATTR param to
- *!                     NODE_Connect(). Removed NODE_GetMessageStream().
- *! 17-Jul-2000 jeh     Updated function header descriptions.
- *! 19-Jun-2000 jeh     Created.
  */
 
 #ifndef NODE_
@@ -71,198 +27,189 @@
 #include <dspbridge/drv.h>
 
 /*
- *  ======== NODE_Allocate ========
+ *  ======== node_allocate ========
  *  Purpose:
  *      Allocate GPP resources to manage a node on the DSP.
  *  Parameters:
- *      hProcessor:         Handle of processor that is allocating the node.
- *      pNodeId:            Pointer to a DSP_UUID for the node.
- *      pArgs:              Optional arguments to be passed to the node.
- *      pAttrIn:            Optional pointer to node attributes (priority,
+ *      hprocessor:         Handle of processor that is allocating the node.
+ *      node_uuid:          Pointer to a dsp_uuid for the node.
+ *      pargs:              Optional arguments to be passed to the node.
+ *      attr_in:            Optional pointer to node attributes (priority,
  *                          timeout...)
- *      phNode:             Location to store node handle on output.
+ *      noderes:             Location to store node resource info.
  *  Returns:
- *      DSP_SOK:            Success.
- *      DSP_EMEMORY:        Insufficient memory on GPP.
- *      DSP_EUUID:          Node UUID has not been registered.
- *      DSP_ESYMBOL:        iAlg functions not found for a DAIS node.
- *      DSP_ERANGE:         pAttrIn != NULL and pAttrIn->iPriority out of
+ *      0:            Success.
+ *      -ENOMEM:        Insufficient memory on GPP.
+ *      -ENOKEY:          Node UUID has not been registered.
+ *      -ESPIPE:        iAlg functions not found for a DAIS node.
+ *      -EDOM:         attr_in != NULL and attr_in->prio out of
  *                          range.
- *      DSP_EFAIL:          A failure occured, unable to allocate node.
- *      DSP_EWRONGSTATE:    Proccessor is not in the running state.
+ *      -EPERM:          A failure occured, unable to allocate node.
+ *      -EBADR:    Proccessor is not in the running state.
  *  Requires:
- *      NODE_Init(void) called.
- *      hProcessor != NULL.
- *      pNodeId != NULL.
- *      phNode != NULL.
+ *      node_init(void) called.
+ *      hprocessor != NULL.
+ *      node_uuid != NULL.
+ *      noderes != NULL.
  *  Ensures:
- *      DSP_SOK:            IsValidNode(*phNode).
- *      error:              *phNode == NULL.
+ *      0:            IsValidNode(*ph_node).
+ *      error:              *noderes == NULL.
  */
-	extern DSP_STATUS NODE_Allocate(struct PROC_OBJECT *hProcessor,
-					IN CONST struct DSP_UUID *pNodeId,
-					OPTIONAL IN CONST struct DSP_CBDATA
-					*pArgs,
-					OPTIONAL IN CONST struct DSP_NODEATTRIN
-					*pAttrIn,
-					OUT struct NODE_OBJECT **phNode,
-					struct PROCESS_CONTEXT *pr_ctxt);
+extern int node_allocate(struct proc_object *hprocessor,
+				const struct dsp_uuid *node_uuid,
+				const struct dsp_cbdata
+				*pargs, const struct dsp_nodeattrin
+				*attr_in,
+				struct node_res_object **noderes,
+				struct process_context *pr_ctxt);
 
 /*
- *  ======== NODE_AllocMsgBuf ========
+ *  ======== node_alloc_msg_buf ========
  *  Purpose:
  *      Allocate and Prepare a buffer whose descriptor will be passed to a
- *      Node within a (DSP_MSG)message
+ *      Node within a (dsp_msg)message
  *  Parameters:
- *      hNode:          The node handle.
- *      uSize:          The size of the buffer to be allocated.
- *      pAttr:          Pointer to a DSP_BUFFERATTR structure.
- *      pBuffer:        Location to store the address of the allocated
+ *      hnode:          The node handle.
+ *      usize:          The size of the buffer to be allocated.
+ *      pattr:          Pointer to a dsp_bufferattr structure.
+ *      pbuffer:        Location to store the address of the allocated
  *                      buffer on output.
  *  Returns:
- *      DSP_SOK:        Success.
- *      DSP_EHANDLE:    Invalid node handle.
- *      DSP_EMEMORY:    Insufficent memory.
- *      DSP_EFAIL:      General Failure.
- *      DSP_ESIZE:      Invalid Size.
+ *      0:        Success.
+ *      -EFAULT:    Invalid node handle.
+ *      -ENOMEM:    Insufficent memory.
+ *      -EPERM:      General Failure.
+ *      -EINVAL:      Invalid Size.
  *  Requires:
- *      NODE_Init(void) called.
- *      pBuffer != NULL.
+ *      node_init(void) called.
+ *      pbuffer != NULL.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_AllocMsgBuf(struct NODE_OBJECT *hNode,
-					   u32 uSize,
-					   OPTIONAL struct DSP_BUFFERATTR
-					   *pAttr,
-					   OUT u8 **pBuffer);
+extern int node_alloc_msg_buf(struct node_object *hnode,
+				     u32 usize, struct dsp_bufferattr
+				     *pattr, u8 **pbuffer);
 
 /*
- *  ======== NODE_ChangePriority ========
+ *  ======== node_change_priority ========
  *  Purpose:
  *      Change the priority of an allocated node.
  *  Parameters:
- *      hNode:              Node handle returned from NODE_Allocate.
- *      nPriority:          New priority level to set node's priority to.
+ *      hnode:              Node handle returned from node_allocate.
+ *      prio:          New priority level to set node's priority to.
  *  Returns:
- *      DSP_SOK:            Success.
- *      DSP_EHANDLE:        Invalid hNode.
- *      DSP_ERANGE:         nPriority is out of range.
- *      DSP_ENODETYPE:      The specified node is not a task node.
- *      DSP_EWRONGSTATE:    Node is not in the NODE_ALLOCATED, NODE_PAUSED,
+ *      0:            Success.
+ *      -EFAULT:        Invalid hnode.
+ *      -EDOM:         prio is out of range.
+ *      -EPERM: The specified node is not a task node.
+ *              Unable to change node's runtime priority level.
+ *      -EBADR:    Node is not in the NODE_ALLOCATED, NODE_PAUSED,
  *                          or NODE_RUNNING state.
- *      DSP_ETIMEOUT:       A timeout occurred before the DSP responded.
- *      DSP_ERESTART:       A critical error has occurred and the DSP is
- *                          being restarted.
- *      DSP_EFAIL:          Unable to change node's runtime priority level.
+ *      -ETIME:       A timeout occurred before the DSP responded.
  *  Requires:
- *      NODE_Init(void) called.
+ *      node_init(void) called.
  *  Ensures:
- *      DSP_SOK && (Node's current priority == nPriority)
+ *      0 && (Node's current priority == prio)
  */
-	extern DSP_STATUS NODE_ChangePriority(struct NODE_OBJECT *hNode,
-					      s32 nPriority);
+extern int node_change_priority(struct node_object *hnode, s32 prio);
 
 /*
- *  ======== NODE_CloseOrphans ========
+ *  ======== node_close_orphans ========
  *  Purpose:
  *      Delete all nodes whose owning processor is being destroyed.
  *  Parameters:
- *      hNodeMgr:       Node manager object.
- *      hProc:          Handle to processor object being destroyed.
+ *      hnode_mgr:       Node manager object.
+ *      proc:          Handle to processor object being destroyed.
  *  Returns:
- *      DSP_SOK:        Success.
- *      DSP_EFAIL:      Unable to delete all nodes belonging to hProc.
+ *      0:        Success.
+ *      -EPERM:      Unable to delete all nodes belonging to proc.
  *  Requires:
- *      Valid hNodeMgr.
- *      hProc != NULL.
+ *      Valid hnode_mgr.
+ *      proc != NULL.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_CloseOrphans(struct NODE_MGR *hNodeMgr,
-					    struct PROC_OBJECT *hProc);
+extern int node_close_orphans(struct node_mgr *hnode_mgr,
+				     struct proc_object *proc);
 
 /*
- *  ======== NODE_Connect ========
+ *  ======== node_connect ========
  *  Purpose:
  *      Connect two nodes on the DSP, or a node on the DSP to the GPP. In the
  *      case that the connnection is being made between a node on the DSP and
- *      the GPP, one of the node handles (either hNode1 or hNode2) must be
+ *      the GPP, one of the node handles (either node1 or node2) must be
  *      the constant NODE_HGPPNODE.
  *  Parameters:
- *      hNode1:         Handle of first node to connect to second node. If
- *                      this is a connection from the GPP to hNode2, hNode1
- *                      must be the constant NODE_HGPPNODE. Otherwise, hNode1
+ *      node1:         Handle of first node to connect to second node. If
+ *                      this is a connection from the GPP to node2, node1
+ *                      must be the constant NODE_HGPPNODE. Otherwise, node1
  *                      must be a node handle returned from a successful call
  *                      to Node_Allocate().
- *      hNode2:         Handle of second node. Must be either NODE_HGPPNODE
+ *      node2:         Handle of second node. Must be either NODE_HGPPNODE
  *                      if this is a connection from DSP node to GPP, or a
  *                      node handle returned from a successful call to
- *                      NODE_Allocate().
- *      uStream1:       Output stream index on first node, to be connected
+ *                      node_allocate().
+ *      stream1:        Output stream index on first node, to be connected
  *                      to second node's input stream. Value must range from
- *                      0 <= uStream1 < number of output streams.
- *      uStream2:       Input stream index on second node. Value must range
- *                      from 0 <= uStream2 < number of input streams.
- *      pAttrs:         Stream attributes (NULL ==> use defaults).
- *      pConnParam:     A pointer to a DSP_CBDATA structure that defines
+ *                      0 <= stream1 < number of output streams.
+ *      stream2:        Input stream index on second node. Value must range
+ *                      from 0 <= stream2 < number of input streams.
+ *      pattrs:         Stream attributes (NULL ==> use defaults).
+ *      conn_param:     A pointer to a dsp_cbdata structure that defines
  *                      connection parameter for device nodes to pass to DSP
  *                      side.
  *                      If the value of this parameter is NULL, then this API
  *                      behaves like DSPNode_Connect. This parameter will have
  *                      length of the string and the null terminated string in
- *                      DSP_CBDATA struct. This can be extended in future tp
+ *                      dsp_cbdata struct. This can be extended in future tp
  *                      pass binary data.
  *  Returns:
- *      DSP_SOK:                Success.
- *      DSP_EHANDLE:            Invalid hNode1 or hNode2.
- *      DSP_EMEMORY:            Insufficient host memory.
- *      DSP_EVALUE:             A stream index parameter is invalid.
- *      DSP_EALREADYCONNECTED:  A connection already exists for one of the
- *                              indices uStream1 or uStream2.
- *      DSP_EWRONGSTATE:        Either hNode1 or hNode2 is not in the
+ *      0:                Success.
+ *      -EFAULT:            Invalid node1 or node2.
+ *      -ENOMEM:            Insufficient host memory.
+ *      -EINVAL:             A stream index parameter is invalid.
+ *      -EISCONN:  A connection already exists for one of the
+ *                              indices stream1 or stream2.
+ *      -EBADR:        Either node1 or node2 is not in the
  *                              NODE_ALLOCATED state.
- *      DSP_ENOMORECONNECTIONS: No more connections available.
- *      DSP_EFAIL:              Attempt to make an illegal connection (eg,
+ *      -ECONNREFUSED: No more connections available.
+ *      -EPERM:              Attempt to make an illegal connection (eg,
  *                              Device node to device node, or device node to
  *                              GPP), the two nodes are on different DSPs.
  *  Requires:
- *      NODE_Init(void) called.
+ *      node_init(void) called.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_Connect(struct NODE_OBJECT *hNode1,
-				       u32 uStream1,
-				       struct NODE_OBJECT *hNode2,
-				       u32 uStream2,
-				       OPTIONAL IN struct DSP_STRMATTR *pAttrs,
-				       OPTIONAL IN struct DSP_CBDATA
-				       *pConnParam);
+extern int node_connect(struct node_object *node1,
+			       u32 stream1,
+			       struct node_object *node2,
+			       u32 stream2,
+			       struct dsp_strmattr *pattrs,
+			       struct dsp_cbdata
+			       *conn_param);
 
 /*
- *  ======== NODE_Create ========
+ *  ======== node_create ========
  *  Purpose:
  *      Create a node on the DSP by remotely calling the node's create
  *      function. If necessary, load code that contains the node's create
  *      function.
  *  Parameters:
- *      hNode:              Node handle returned from NODE_Allocate().
+ *      hnode:              Node handle returned from node_allocate().
  *  Returns:
- *      DSP_SOK:            Success.
- *      DSP_EHANDLE:        Invalid hNode.
- *      DSP_ESYMBOL:        Create function not found in the COFF file.
- *      DSP_EWRONGSTATE:    Node is not in the NODE_ALLOCATED state.
- *      DSP_EMEMORY:        Memory allocation failure on the DSP.
- *      DSP_ETASK:          Unable to create node's task or process on the DSP.
- *      DSP_ESTREAM:        Stream creation failure on the DSP.
- *      DSP_ETIMEOUT:       A timeout occurred before the DSP responded.
- *      DSP_EUSER1-16:      A user-defined failure occurred on the DSP.
- *      DSP_EFAIL:          A failure occurred, unable to create node.
+ *      0:            Success.
+ *      -EFAULT:        Invalid hnode.
+ *      -ESPIPE:        Create function not found in the COFF file.
+ *      -EBADR:    Node is not in the NODE_ALLOCATED state.
+ *      -ENOMEM:        Memory allocation failure on the DSP.
+ *      -ETIME:       A timeout occurred before the DSP responded.
+ *      -EPERM:          A failure occurred, unable to create node.
  *  Requires:
- *      NODE_Init(void) called.
+ *      node_init(void) called.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_Create(struct NODE_OBJECT *hNode);
+extern int node_create(struct node_object *hnode);
 
 /*
- *  ======== NODE_CreateMgr ========
+ *  ======== node_create_mgr ========
  *  Purpose:
  *      Create a NODE Manager object. This object handles the creation,
  *      deletion, and execution of nodes on the DSP target. The NODE Manager
@@ -270,196 +217,194 @@
  *      Each DEV object should have exactly one NODE Manager object.
  *
  *  Parameters:
- *      phNodeMgr:      Location to store node manager handle on output.
- *      hDevObject:     Device for this processor.
+ *      node_man:       Location to store node manager handle on output.
+ *      hdev_obj:     Device for this processor.
  *  Returns:
- *      DSP_SOK:        Success;
- *      DSP_EMEMORY:    Insufficient memory for requested resources.
- *      DSP_EFAIL:      General failure.
+ *      0:        Success;
+ *      -ENOMEM:    Insufficient memory for requested resources.
+ *      -EPERM:      General failure.
  *  Requires:
- *      NODE_Init(void) called.
- *      phNodeMgr != NULL.
- *      hDevObject != NULL.
+ *      node_init(void) called.
+ *      node_man != NULL.
+ *      hdev_obj != NULL.
  *  Ensures:
- *      DSP_SOK:        Valide *phNodeMgr.
- *      error:          *phNodeMgr == NULL.
+ *      0:        Valide *node_man.
+ *      error:          *node_man == NULL.
  */
-	extern DSP_STATUS NODE_CreateMgr(OUT struct NODE_MGR **phNodeMgr,
-					 struct DEV_OBJECT *hDevObject);
+extern int node_create_mgr(struct node_mgr **node_man,
+				  struct dev_object *hdev_obj);
 
 /*
- *  ======== NODE_Delete ========
+ *  ======== node_delete ========
  *  Purpose:
- *      Delete resources allocated in NODE_Allocate(). If the node was
+ *      Delete resources allocated in node_allocate(). If the node was
  *      created, delete the node on the DSP by remotely calling the node's
  *      delete function. Loads the node's delete function if necessary.
  *      GPP side resources are freed after node's delete function returns.
  *  Parameters:
- *      hNode:              Node handle returned from NODE_Allocate().
+ *      noderes:              Node resource info handle returned from
+ *                                 node_allocate().
+ *      pr_ctxt:                Poninter to process context data.
  *  Returns:
- *      DSP_SOK:            Success.
- *      DSP_EHANDLE:        Invalid hNode.
- *      DSP_ETIMEOUT:       A timeout occurred before the DSP responded.
- *      DSP_EDELETE:        A deletion failure occurred.
- *      DSP_EUSER1-16:      Node specific failure occurred on the DSP.
- *      DSP_EFAIL:          A failure occurred in deleting the node.
- *      DSP_ESYMBOL:        Delete function not found in the COFF file.
+ *      0:            Success.
+ *      -EFAULT:        Invalid hnode.
+ *      -ETIME:       A timeout occurred before the DSP responded.
+ *      -EPERM:          A failure occurred in deleting the node.
+ *      -ESPIPE:        Delete function not found in the COFF file.
  *  Requires:
- *      NODE_Init(void) called.
+ *      node_init(void) called.
  *  Ensures:
- *      DSP_SOK:            hNode is invalid.
+ *      0:            hnode is invalid.
  */
-	extern DSP_STATUS NODE_Delete(struct NODE_OBJECT *hNode,
-			struct PROCESS_CONTEXT *pr_ctxt);
+extern int node_delete(struct node_res_object *noderes,
+			      struct process_context *pr_ctxt);
 
 /*
- *  ======== NODE_DeleteMgr ========
+ *  ======== node_delete_mgr ========
  *  Purpose:
  *      Delete the NODE Manager.
  *  Parameters:
- *      hNodeMgr:       Node manager object.
+ *      hnode_mgr:       Node manager object.
  *  Returns:
- *      DSP_SOK:        Success.
+ *      0:        Success.
  *  Requires:
- *      NODE_Init(void) called.
- *      Valid hNodeMgr.
+ *      node_init(void) called.
+ *      Valid hnode_mgr.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_DeleteMgr(struct NODE_MGR *hNodeMgr);
+extern int node_delete_mgr(struct node_mgr *hnode_mgr);
 
 /*
- *  ======== NODE_EnumNodes ========
+ *  ======== node_enum_nodes ========
  *  Purpose:
  *      Enumerate the nodes currently allocated for the DSP.
  *  Parameters:
- *      hNodeMgr:       Node manager returned from NODE_CreateMgr().
- *      aNodeTab:       Array to copy node handles into.
- *      uNodeTabSize:   Number of handles that can be written to aNodeTab.
- *      puNumNodes:     Location where number of node handles written to
- *                      aNodeTab will be written.
- *      puAllocated:    Location to write total number of allocated nodes.
+ *      hnode_mgr:       Node manager returned from node_create_mgr().
+ *      node_tab:       Array to copy node handles into.
+ *      node_tab_size:   Number of handles that can be written to node_tab.
+ *      pu_num_nodes:     Location where number of node handles written to
+ *                      node_tab will be written.
+ *      pu_allocated:    Location to write total number of allocated nodes.
  *  Returns:
- *      DSP_SOK:        Success.
- *      DSP_ESIZE:      aNodeTab is too small to hold all node handles.
+ *      0:        Success.
+ *      -EINVAL:      node_tab is too small to hold all node handles.
  *  Requires:
- *      Valid hNodeMgr.
- *      aNodeTab != NULL || uNodeTabSize == 0.
- *      puNumNodes != NULL.
- *      puAllocated != NULL.
+ *      Valid hnode_mgr.
+ *      node_tab != NULL || node_tab_size == 0.
+ *      pu_num_nodes != NULL.
+ *      pu_allocated != NULL.
  *  Ensures:
- *      - (DSP_ESIZE && *puNumNodes == 0)
- *      - || (DSP_SOK && *puNumNodes <= uNodeTabSize)  &&
- *        (*puAllocated == *puNumNodes)
+ *      - (-EINVAL && *pu_num_nodes == 0)
+ *      - || (0 && *pu_num_nodes <= node_tab_size)  &&
+ *        (*pu_allocated == *pu_num_nodes)
  */
-	extern DSP_STATUS NODE_EnumNodes(struct NODE_MGR *hNodeMgr,
-					 IN DSP_HNODE *aNodeTab,
-					 u32 uNodeTabSize,
-					 OUT u32 *puNumNodes,
-					 OUT u32 *puAllocated);
+extern int node_enum_nodes(struct node_mgr *hnode_mgr,
+				  void **node_tab,
+				  u32 node_tab_size,
+				  u32 *pu_num_nodes,
+				  u32 *pu_allocated);
 
 /*
- *  ======== NODE_Exit ========
+ *  ======== node_exit ========
  *  Purpose:
  *      Discontinue usage of NODE module.
  *  Parameters:
  *  Returns:
  *  Requires:
- *      NODE_Init(void) successfully called before.
+ *      node_init(void) successfully called before.
  *  Ensures:
- *      Any resources acquired in NODE_Init(void) will be freed when last NODE
- *      client calls NODE_Exit(void).
+ *      Any resources acquired in node_init(void) will be freed when last NODE
+ *      client calls node_exit(void).
  */
-	extern void NODE_Exit(void);
+extern void node_exit(void);
 
 /*
- *  ======== NODE_FreeMsgBuf ========
+ *  ======== node_free_msg_buf ========
  *  Purpose:
- *      Free a message buffer previously allocated with NODE_AllocMsgBuf.
+ *      Free a message buffer previously allocated with node_alloc_msg_buf.
  *  Parameters:
- *      hNode:          The node handle.
- *      pBuffer:        (Address) Buffer allocated by NODE_AllocMsgBuf.
- *      pAttr:          Same buffer attributes passed to NODE_AllocMsgBuf.
+ *      hnode:          The node handle.
+ *      pbuffer:        (Address) Buffer allocated by node_alloc_msg_buf.
+ *      pattr:          Same buffer attributes passed to node_alloc_msg_buf.
  *  Returns:
- *      DSP_SOK:        Success.
- *      DSP_EHANDLE:    Invalid node handle.
- *      DSP_EFAIL:      Failure to free the buffer.
+ *      0:        Success.
+ *      -EFAULT:    Invalid node handle.
+ *      -EPERM:      Failure to free the buffer.
  *  Requires:
- *      NODE_Init(void) called.
- *      pBuffer != NULL.
+ *      node_init(void) called.
+ *      pbuffer != NULL.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_FreeMsgBuf(struct NODE_OBJECT *hNode,
-					  IN u8 *pBuffer,
-					  OPTIONAL struct DSP_BUFFERATTR
-					  *pAttr);
+extern int node_free_msg_buf(struct node_object *hnode,
+				    u8 *pbuffer,
+				    struct dsp_bufferattr
+				    *pattr);
 
 /*
- *  ======== NODE_GetAttr ========
+ *  ======== node_get_attr ========
  *  Purpose:
- *      Copy the current attributes of the specified node into a DSP_NODEATTR
+ *      Copy the current attributes of the specified node into a dsp_nodeattr
  *      structure.
  *  Parameters:
- *      hNode:          Node object allocated from NODE_Allocate().
- *      pAttr:          Pointer to DSP_NODEATTR structure to copy node's
+ *      hnode:          Node object allocated from node_allocate().
+ *      pattr:          Pointer to dsp_nodeattr structure to copy node's
  *                      attributes.
- *      uAttrSize:      Size of pAttr.
+ *      attr_size:      Size of pattr.
  *  Returns:
- *      DSP_SOK:        Success.
- *      DSP_EHANDLE:    Invalid hNode.
+ *      0:        Success.
+ *      -EFAULT:    Invalid hnode.
  *  Requires:
- *      NODE_Init(void) called.
- *      pAttr != NULL.
+ *      node_init(void) called.
+ *      pattr != NULL.
  *  Ensures:
- *      DSP_SOK:        *pAttrs contains the node's current attributes.
+ *      0:        *pattrs contains the node's current attributes.
  */
-	extern DSP_STATUS NODE_GetAttr(struct NODE_OBJECT *hNode,
-				       OUT struct DSP_NODEATTR *pAttr,
-				       u32 uAttrSize);
+extern int node_get_attr(struct node_object *hnode,
+				struct dsp_nodeattr *pattr, u32 attr_size);
 
 /*
- *  ======== NODE_GetMessage ========
+ *  ======== node_get_message ========
  *  Purpose:
  *      Retrieve a message from a node on the DSP. The node must be either a
  *      message node, task node, or XDAIS socket node.
  *      If a message is not available, this function will block until a
  *      message is available, or the node's timeout value is reached.
  *  Parameters:
- *      hNode:          Node handle returned from NODE_Allocate().
- *      pMessage:       Pointer to DSP_MSG structure to copy the
+ *      hnode:          Node handle returned from node_allocate().
+ *      message:       Pointer to dsp_msg structure to copy the
  *                      message into.
- *      uTimeout:       Timeout in milliseconds to wait for message.
+ *      utimeout:       Timeout in milliseconds to wait for message.
  *  Returns:
- *      DSP_SOK:        Success.
- *      DSP_EHANDLE:    Invalid hNode.
- *      DSP_ENODETYPE:  Cannot retrieve messages from this type of node.
- *      DSP_ETIMEOUT:   Timeout occurred and no message is available.
- *      DSP_EFAIL:      Error occurred while trying to retrieve a message.
+ *      0:        Success.
+ *      -EFAULT:    Invalid hnode.
+ *      -EPERM: Cannot retrieve messages from this type of node.
+ *              Error occurred while trying to retrieve a message.
+ *      -ETIME:   Timeout occurred and no message is available.
  *  Requires:
- *      NODE_Init(void) called.
- *      pMessage != NULL.
+ *      node_init(void) called.
+ *      message != NULL.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_GetMessage(struct NODE_OBJECT *hNode,
-					  OUT struct DSP_MSG *pMessage,
-					  u32 uTimeout);
+extern int node_get_message(struct node_object *hnode,
+				   struct dsp_msg *message, u32 utimeout);
 
 /*
- *  ======== NODE_GetNldrObj ========
+ *  ======== node_get_nldr_obj ========
  *  Purpose:
  *      Retrieve the Nldr manager
  *  Parameters:
- *      hNodeMgr:       Node Manager
- *      phNldrObj:      Pointer to a Nldr manager handle
+ *      hnode_mgr:       Node Manager
+ *      nldr_ovlyobj:   Pointer to a Nldr manager handle
  *  Returns:
- *      DSP_SOK:        Success.
- *      DSP_EHANDLE:    Invalid hNode.
+ *      0:        Success.
+ *      -EFAULT:    Invalid hnode.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_GetNldrObj(struct NODE_MGR *hNodeMgr,
-					  OUT struct NLDR_OBJECT **phNldrObj);
+extern int node_get_nldr_obj(struct node_mgr *hnode_mgr,
+				    struct nldr_object **nldr_ovlyobj);
 
 /*
- *  ======== NODE_Init ========
+ *  ======== node_init ========
  *  Purpose:
  *      Initialize the NODE module.
  *  Parameters:
@@ -467,156 +412,172 @@
  *      TRUE if initialization succeeded, FALSE otherwise.
  *  Ensures:
  */
-	extern bool NODE_Init(void);
+extern bool node_init(void);
 
 /*
- *  ======== NODE_OnExit ========
+ *  ======== node_on_exit ========
  *  Purpose:
  *      Gets called when RMS_EXIT is received for a node. PROC needs to pass
- *      this function as a parameter to MSG_Create(). This function then gets
- *      called by the mini-driver when an exit message for a node is received.
+ *      this function as a parameter to msg_create(). This function then gets
+ *      called by the Bridge driver when an exit message for a node is received.
  *  Parameters:
- *      hNode:      Handle of the node that the exit message is for.
- *      nStatus:    Return status of the node's execute phase.
+ *      hnode:      Handle of the node that the exit message is for.
+ *      node_status:    Return status of the node's execute phase.
  *  Returns:
  *  Ensures:
  */
-	void NODE_OnExit(struct NODE_OBJECT *hNode, s32 nStatus);
+void node_on_exit(struct node_object *hnode, s32 node_status);
 
 /*
- *  ======== NODE_Pause ========
+ *  ======== node_pause ========
  *  Purpose:
  *      Suspend execution of a node currently running on the DSP.
  *  Parameters:
- *      hNode:              Node object representing a node currently
+ *      hnode:              Node object representing a node currently
  *                          running on the DSP.
  *  Returns:
- *      DSP_SOK:            Success.
- *      DSP_EHANDLE:        Invalid hNode.
- *      DSP_ENODETYPE:      Node is not a task or socket node.
- *      DSP_ETIMEOUT:       A timeout occurred before the DSP responded.
+ *      0:            Success.
+ *      -EFAULT:        Invalid hnode.
+ *      -EPERM: Node is not a task or socket node.
+ *              Failed to pause node.
+ *      -ETIME:       A timeout occurred before the DSP responded.
  *      DSP_EWRONGSTSATE:   Node is not in NODE_RUNNING state.
- *      DSP_EFAIL:          Failed to pause node.
  *  Requires:
- *      NODE_Init(void) called.
+ *      node_init(void) called.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_Pause(struct NODE_OBJECT *hNode);
+extern int node_pause(struct node_object *hnode);
 
 /*
- *  ======== NODE_PutMessage ========
+ *  ======== node_put_message ========
  *  Purpose:
  *      Send a message to a message node, task node, or XDAIS socket node.
  *      This function will block until the message stream can accommodate
  *      the message, or a timeout occurs. The message will be copied, so Msg
  *      can be re-used immediately after return.
  *  Parameters:
- *      hNode:              Node handle returned by NODE_Allocate().
- *      pMsg:               Location of message to be sent to the node.
- *      uTimeout:           Timeout in msecs to wait.
+ *      hnode:              Node handle returned by node_allocate().
+ *      pmsg:               Location of message to be sent to the node.
+ *      utimeout:           Timeout in msecs to wait.
  *  Returns:
- *      DSP_SOK:            Success.
- *      DSP_EHANDLE:        Invalid hNode.
- *      DSP_ENODETYPE:      Messages can't be sent to this type of node.
- *      DSP_ETIMEOUT:       Timeout occurred before message could be set.
- *      DSP_EWRONGSTATE:    Node is in invalid state for sending messages.
- *      DSP_EFAIL:          Unable to send message.
+ *      0:            Success.
+ *      -EFAULT:        Invalid hnode.
+ *      -EPERM: Messages can't be sent to this type of node.
+ *              Unable to send message.
+ *      -ETIME:       Timeout occurred before message could be set.
+ *      -EBADR:    Node is in invalid state for sending messages.
  *  Requires:
- *      NODE_Init(void) called.
- *      pMsg != NULL.
+ *      node_init(void) called.
+ *      pmsg != NULL.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_PutMessage(struct NODE_OBJECT *hNode,
-					  IN CONST struct DSP_MSG *pMsg,
-					  u32 uTimeout);
+extern int node_put_message(struct node_object *hnode,
+				   const struct dsp_msg *pmsg, u32 utimeout);
 
 /*
- *  ======== NODE_RegisterNotify ========
+ *  ======== node_register_notify ========
  *  Purpose:
  *      Register to be notified on specific events for this node.
  *  Parameters:
- *      hNode:          Node handle returned by NODE_Allocate().
- *      uEventMask:     Mask of types of events to be notified about.
- *      uNotifyType:    Type of notification to be sent.
- *      hNotification:  Handle to be used for notification.
+ *      hnode:          Node handle returned by node_allocate().
+ *      event_mask:     Mask of types of events to be notified about.
+ *      notify_type:    Type of notification to be sent.
+ *      hnotification:  Handle to be used for notification.
  *  Returns:
- *      DSP_SOK:        Success.
- *      DSP_EHANDLE:    Invalid hNode.
- *      DSP_EMEMORY:    Insufficient memory on GPP.
- *      DSP_EVALUE:     uEventMask is invalid.
- *      DSP_ENOTIMPL:   Notification type specified by uNotifyType is not
+ *      0:        Success.
+ *      -EFAULT:    Invalid hnode.
+ *      -ENOMEM:    Insufficient memory on GPP.
+ *      -EINVAL:     event_mask is invalid.
+ *      -ENOSYS:   Notification type specified by notify_type is not
  *                      supported.
  *  Requires:
- *      NODE_Init(void) called.
- *      hNotification != NULL.
+ *      node_init(void) called.
+ *      hnotification != NULL.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_RegisterNotify(struct NODE_OBJECT *hNode,
-					      u32 uEventMask, u32 uNotifyType,
-					      struct DSP_NOTIFICATION
-					      *hNotification);
+extern int node_register_notify(struct node_object *hnode,
+				       u32 event_mask, u32 notify_type,
+				       struct dsp_notification
+				       *hnotification);
 
 /*
- *  ======== NODE_Run ========
+ *  ======== node_run ========
  *  Purpose:
  *      Start execution of a node's execute phase, or resume execution of
- *      a node that has been suspended (via NODE_Pause()) on the DSP. Load
+ *      a node that has been suspended (via node_pause()) on the DSP. Load
  *      the node's execute function if necessary.
  *  Parameters:
- *      hNode:              Node object representing a node currently
+ *      hnode:              Node object representing a node currently
  *                          running on the DSP.
  *  Returns:
- *      DSP_SOK:            Success.
- *      DSP_EHANDLE:        Invalid hNode.
- *      DSP_ENODETYPE:      hNode doesn't represent a message, task or dais
- *                          socket node.
- *      DSP_ETIMEOUT:       A timeout occurred before the DSP responded.
+ *      0:            Success.
+ *      -EFAULT:        Invalid hnode.
+ *      -EPERM: hnode doesn't represent a message, task or dais socket node.
+ *              Unable to start or resume execution.
+ *      -ETIME:       A timeout occurred before the DSP responded.
  *      DSP_EWRONGSTSATE:   Node is not in NODE_PAUSED or NODE_CREATED state.
- *      DSP_EFAIL:          Unable to start or resume execution.
- *      DSP_ESYMBOL:        Execute function not found in the COFF file.
+ *      -ESPIPE:        Execute function not found in the COFF file.
  *  Requires:
- *      NODE_Init(void) called.
+ *      node_init(void) called.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_Run(struct NODE_OBJECT *hNode);
+extern int node_run(struct node_object *hnode);
 
 /*
- *  ======== NODE_Terminate ========
+ *  ======== node_terminate ========
  *  Purpose:
  *      Signal a node running on the DSP that it should exit its execute
  *      phase function.
  *  Parameters:
- *      hNode:              Node object representing a node currently
+ *      hnode:              Node object representing a node currently
  *                          running on the DSP.
- *      pStatus:            Location to store execute-phase function return
- *                          value (DSP_EUSER1-16).
+ *      pstatus:            Location to store execute-phase function return
+ *                          value.
  *  Returns:
- *      DSP_SOK:            Success.
- *      DSP_EHANDLE:        Invalid hNode.
- *      DSP_ETIMEOUT:       A timeout occurred before the DSP responded.
- *      DSP_ENODETYPE:      Type of node specified cannot be terminated.
- *      DSP_EWRONGSTATE:    Operation not valid for the current node state.
- *      DSP_EFAIL:          Unable to terminate the node.
+ *      0:            Success.
+ *      -EFAULT:        Invalid hnode.
+ *      -ETIME:       A timeout occurred before the DSP responded.
+ *      -EPERM: Type of node specified cannot be terminated.
+ *              Unable to terminate the node.
+ *      -EBADR:    Operation not valid for the current node state.
  *  Requires:
- *      NODE_Init(void) called.
- *      pStatus != NULL.
+ *      node_init(void) called.
+ *      pstatus != NULL.
  *  Ensures:
  */
-	extern DSP_STATUS NODE_Terminate(struct NODE_OBJECT *hNode,
-					 OUT DSP_STATUS *pStatus);
-
-
+extern int node_terminate(struct node_object *hnode,
+				 int *pstatus);
 
 /*
- *  ======== NODE_GetUUIDProps ========
+ *  ======== node_get_uuid_props ========
  *  Purpose:
  *      Fetch Node properties given the UUID
  *  Parameters:
  *
  */
-	extern DSP_STATUS NODE_GetUUIDProps(DSP_HPROCESSOR hProcessor,
-					    IN CONST struct DSP_UUID *pNodeId,
-					    OUT struct DSP_NDBPROPS
-					    *pNodeProps);
+extern int node_get_uuid_props(void *hprocessor,
+				      const struct dsp_uuid *node_uuid,
+				      struct dsp_ndbprops
+				      *node_props);
 
-#endif				/* NODE_ */
+#ifdef CONFIG_TIDSPBRIDGE_BACKTRACE
+/**
+ * node_find_addr() - Find the closest symbol to the given address.
+ *
+ * @node_mgr:		Node manager handle
+ * @sym_addr:		Given address to find the closest symbol
+ * @offset_range:		offset range to look fo the closest symbol
+ * @sym_addr_output:	Symbol Output address
+ * @sym_name:		String with the symbol name of the closest symbol
+ *
+ * 	This function finds the closest symbol to the address where a MMU
+ *	Fault occurred on the DSP side.
+ */
+int node_find_addr(struct node_mgr *node_mgr, u32 sym_addr,
+				u32 offset_range, void *sym_addr_output,
+				char *sym_name);
+
+enum node_state node_get_state(void *hnode);
+#endif
+
+#endif /* NODE_ */

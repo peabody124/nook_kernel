@@ -3,6 +3,8 @@
  *
  * DSP-BIOS Bridge driver support functions for TI OMAP processors.
  *
+ * DSP/BIOS Bridge dynamic loader interface.
+ *
  * Copyright (C) 2005-2006 Texas Instruments, Inc.
  *
  * This package is free software; you can redistribute it and/or modify
@@ -14,33 +16,6 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-
-/*
- *  ======== nldr.h ========
- *
- *  Description:
- *      DSP/BIOS Bridge dynamic loader interface. See the file dldrdefs.h
- *  for a description of these functions.
- *
- *  Public Functions:
- *      NLDR_Allocate
- *      NLDR_Create
- *      NLDR_Delete
- *      NLDR_Exit
- *      NLDR_Free
- *      NLDR_GetFxnAddr
- *      NLDR_Init
- *      NLDR_Load
- *      NLDR_Unload
- *
- *  Notes:
- *
- *! Revision History
- *! ================
- *! 31-Jul-2002 jeh     Removed function header comments.
- *! 17-Apr-2002 jeh     Created.
- */
-
 #include <dspbridge/dbdefs.h>
 #include <dspbridge/dbdcddef.h>
 #include <dspbridge/dev.h>
@@ -50,32 +25,33 @@
 #ifndef NLDR_
 #define NLDR_
 
-	extern DSP_STATUS NLDR_Allocate(struct NLDR_OBJECT *hNldr,
-					void *pPrivRef,
-					IN CONST struct DCD_NODEPROPS
-					*pNodeProps,
-					OUT struct NLDR_NODEOBJECT **phNldrNode,
-					IN bool *pfPhaseSplit);
+extern int nldr_allocate(struct nldr_object *nldr_obj,
+				void *priv_ref, const struct dcd_nodeprops
+				*node_props,
+				struct nldr_nodeobject **nldr_nodeobj,
+				bool *pf_phase_split);
 
-	extern DSP_STATUS NLDR_Create(OUT struct NLDR_OBJECT **phNldr,
-				      struct DEV_OBJECT *hDevObject,
-				      IN CONST struct NLDR_ATTRS *pAttrs);
+extern int nldr_create(struct nldr_object **nldr,
+			      struct dev_object *hdev_obj,
+			      const struct nldr_attrs *pattrs);
 
-	extern void NLDR_Delete(struct NLDR_OBJECT *hNldr);
-	extern void NLDR_Exit(void);
-	extern void NLDR_Free(struct NLDR_NODEOBJECT *hNldrNode);
+extern void nldr_delete(struct nldr_object *nldr_obj);
+extern void nldr_exit(void);
 
-	extern DSP_STATUS NLDR_GetFxnAddr(struct NLDR_NODEOBJECT *hNldrNode,
-					  char *pstrFxn, u32 *pulAddr);
+extern int nldr_get_fxn_addr(struct nldr_nodeobject *nldr_node_obj,
+				    char *str_fxn, u32 * addr);
 
-	extern DSP_STATUS NLDR_GetRmmManager(struct NLDR_OBJECT *hNldrObject,
-					     OUT struct RMM_TargetObj
-					     **phRmmMgr);
+extern int nldr_get_rmm_manager(struct nldr_object *nldr,
+				       struct rmm_target_obj **rmm_mgr);
 
-	extern bool NLDR_Init(void);
-	extern DSP_STATUS NLDR_Load(struct NLDR_NODEOBJECT *hNldrNode,
-				    enum NLDR_PHASE phase);
-	extern DSP_STATUS NLDR_Unload(struct NLDR_NODEOBJECT *hNldrNode,
-				    enum NLDR_PHASE phase);
+extern bool nldr_init(void);
+extern int nldr_load(struct nldr_nodeobject *nldr_node_obj,
+			    enum nldr_phase phase);
+extern int nldr_unload(struct nldr_nodeobject *nldr_node_obj,
+			      enum nldr_phase phase);
+#ifdef CONFIG_TIDSPBRIDGE_BACKTRACE
+int nldr_find_addr(struct nldr_nodeobject *nldr_node, u32 sym_addr,
+	u32 offset_range, void *offset_output, char *sym_name);
+#endif
 
-#endif				/* NLDR_ */
+#endif /* NLDR_ */

@@ -3,6 +3,9 @@
  *
  * DSP-BIOS Bridge driver support functions for TI OMAP processors.
  *
+ * IO dispatcher for a shared memory channel driver.
+ * Also, includes macros to simulate shm via port io calls.
+ *
  * Copyright (C) 2005-2006 Texas Instruments, Inc.
  *
  * This package is free software; you can redistribute it and/or modify
@@ -12,41 +15,6 @@
  * THIS PACKAGE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
- */
-
-
-/*
- *  ======== io_sm.h ========
- *  Description:
- *      IO dispatcher for a shared memory channel driver.
- *      Also, includes macros to simulate SHM via port io calls.
- *
- *  Public Functions:
- *      IO_Dispatch
- *      IO_DPC
- *      IO_ISR
- *      IO_RequestChnl
- *
- *  Notes:
- *
- *! Revision History:
- *! ================
- *! 01-Mar-2004 vp: Added IVA releated functions.
- *! 23-Apr-2003 sb: Fixed mailbox deadlock
- *! 06-Feb-2003 kc  Added IO_DDMAClearChnlDesc and IO_DDZCClearChnlDesc.
- *! 21-Dec-2001 ag  Removed unused param in IO_DDMAInitChnlDesc().
- *                  Updated comments. Removed #ifdef CHNL_NOIPCINTR.
- *! 05-Nov-2001 kc  Updated IO_CALLISR macro.
- *! 01-May-2001 jeh Removed IO_RequestMsg.
- *! 29-Mar-2001 ag  Added #ifdef CHNL_NOIPCINTR.
- *! 04-Dec-2000 jeh Added IO_RequestMsg.
- *! 26-Oct-2000 jeh Added IO_GetLong, IO_SetLong, IO_ReadValueLong, and
- *!                 IO_WriteValueLong, for passing arg in SHM structure.
- *! 20-Jan-2000 ag: Updated header comments per code review.
- *! 05-Jan-2000 ag: Text format clean-up.
- *! 02-Nov-1999 ag: Updated header descriptions.
- *! 25-May-1999 jg: Removed assumption of 4 bytes / word.
- *! 12-Aug-1996 gp: Created.
  */
 
 #ifndef IOSM_
@@ -62,44 +30,34 @@
 #define IO_SERVICE          2
 #define IO_MAXSERVICE       IO_SERVICE
 
-#define IO_MGRSIGNATURE     0x494f4D43	/* "IOGR" */
-
-#define DSPFieldAddr(type, field, base, wordsize) \
-    ((((s32)&(((type *)0)->field)) / wordsize) + (u32)base)
-
-/* Access can be different SM access word size (e.g. 16/32 bit words) */
-#define IO_SetValue(pContext, type, base, field, value) (base->field = value)
-#define IO_GetValue(pContext, type, base, field)	(base->field)
-#define IO_OrValue(pContext, type, base, field, value)  (base->field |= value)
-#define IO_AndValue(pContext, type, base, field, value) (base->field &= value)
-#define IO_SetLong(pContext, type, base, field, value)  (base->field = value)
-#define IO_GetLong(pContext, type, base, field)         (base->field)
-
-#define IO_DisableInterrupt(h)  CHNLSM_DisableInterrupt(h)
-#define IO_EnableInterrupt(h)   CHNLSM_EnableInterrupt(h)
-#define IO_CALLISR(h, pFlag, pwMBRegVal)   CHNLSM_ISR(h, pFlag, pwMBRegVal)
+#ifdef CONFIG_TIDSPBRIDGE_DVFS
+/* The maximum number of OPPs that are supported */
+extern s32 dsp_max_opps;
+/* The Vdd1 opp table information */
+extern u32 vdd1_dsp_freq[6][4];
+#endif
 
 /*
- *  ======== IO_CancelChnl ========
+ *  ======== io_cancel_chnl ========
  *  Purpose:
  *      Cancel IO on a given channel.
  *  Parameters:
- *      hIOMgr:     IO Manager.
- *      ulChnl:     Index of channel to cancel IO on.
+ *      hio_mgr:     IO Manager.
+ *      chnl:       Index of channel to cancel IO on.
  *  Returns:
  *  Requires:
- *      Valid hIOMgr.
+ *      Valid hio_mgr.
  *  Ensures:
  */
-	extern void IO_CancelChnl(struct IO_MGR *hIOMgr, u32 ulChnl);
+extern void io_cancel_chnl(struct io_mgr *hio_mgr, u32 chnl);
 
 /*
- *  ======== IO_DPC ========
+ *  ======== io_dpc ========
  *  Purpose:
  *      Deferred procedure call for shared memory channel driver ISR.  Carries
  *      out the dispatch of I/O.
  *  Parameters:
- *      pRefData:   Pointer to reference data registered via a call to
+ *      ref_data:   Pointer to reference data registered via a call to
  *                  DPC_Create().
  *  Returns:
  *  Requires:
@@ -109,227 +67,227 @@
  *  Ensures:
  *      Non-preemptible (but interruptible).
  */
-	extern void IO_DPC(IN OUT void *pRefData);
+extern void io_dpc(unsigned long ref_data);
 
 /*
- *  ======== IO_ISR ========
+ *  ======== io_mbox_msg ========
  *  Purpose:
- *      Main interrupt handler for the shared memory WMD channel manager.
- *      Calls the WMD's CHNLSM_ISR to determine if this interrupt is ours, then
- *      schedules a DPC to dispatch I/O..
+ *	Main message handler for the shared memory Bridge channel manager.
+ *	Determine if this message is ours, then schedules a DPC to
+ *	dispatch I/O.
  *  Parameters:
- *      pRefData:   Pointer to the channel manager object for this board.
- *                  Set in an initial call to ISR_Install().
+ *	self:	Pointer to its own notifier_block struct.
+ *	len:	Length of message.
+ *	msg:	Message code received.
  *  Returns:
- *      TRUE if interrupt handled; FALSE otherwise.
- *  Requires:
- *      Must be in locked memory if executing in kernel mode.
- *      Must only call functions which are in locked memory if Kernel mode.
- *      Must only call asynchronous services.
- *      Interrupts are disabled and EOI for this interrupt has been sent.
- *  Ensures:
+ *	NOTIFY_OK if handled; NOTIFY_BAD otherwise.
  */
-       irqreturn_t IO_ISR(int irq, IN void *pRefData);
+int io_mbox_msg(struct notifier_block *self, unsigned long len, void *msg);
+
 /*
- *  ======== IO_RequestChnl ========
+ *  ======== io_request_chnl ========
  *  Purpose:
  *      Request I/O from the DSP. Sets flags in shared memory, then interrupts
  *      the DSP.
  *  Parameters:
- *      hIOMgr:     IO manager handle.
- *      pChnl:      Ptr to the channel requesting I/O.
- *      iMode:      Mode of channel: {IO_INPUT | IO_OUTPUT}.
+ *      hio_mgr:     IO manager handle.
+ *      pchnl:      Ptr to the channel requesting I/O.
+ *      io_mode:      Mode of channel: {IO_INPUT | IO_OUTPUT}.
  *  Returns:
  *  Requires:
- *      pChnl != NULL
+ *      pchnl != NULL
  *  Ensures:
  */
-	extern void IO_RequestChnl(struct IO_MGR *hIOMgr,
-				   struct CHNL_OBJECT *pChnl,
-				   u32 iMode, OUT u16 *pwMbVal);
+extern void io_request_chnl(struct io_mgr *io_manager,
+			    struct chnl_object *pchnl,
+			    u8 io_mode, u16 *mbx_val);
 
 /*
- *  ======== IO_Schedule ========
+ *  ======== iosm_schedule ========
  *  Purpose:
  *      Schedule DPC for IO.
  *  Parameters:
- *      pIOMgr:     Ptr to a I/O manager.
+ *      pio_mgr:     Ptr to a I/O manager.
  *  Returns:
  *  Requires:
- *      pChnl != NULL
+ *      pchnl != NULL
  *  Ensures:
  */
-	extern void IO_Schedule(struct IO_MGR *hIOMgr);
+extern void iosm_schedule(struct io_mgr *io_manager);
 
 /*
  * DSP-DMA IO functions
  */
 
 /*
- *  ======== IO_DDMAInitChnlDesc ========
+ *  ======== io_ddma_init_chnl_desc ========
  *  Purpose:
  *      Initialize DSP DMA channel descriptor.
  *  Parameters:
- *      hIOMgr:         Handle to a I/O manager.
- *      uDDMAChnlId:    DDMA channel identifier.
- *      uNumDesc:       Number of buffer descriptors(equals # of IOReqs &
+ *      hio_mgr:         Handle to a I/O manager.
+ *      ddma_chnl_id:    DDMA channel identifier.
+ *      num_desc:       Number of buffer descriptors(equals # of IOReqs &
  *                      Chirps)
- *      pDsp:           Dsp address;
+ *      dsp:           Dsp address;
  *  Returns:
  *  Requires:
- *     uDDMAChnlId < DDMA_MAXDDMACHNLS
- *     uNumDesc > 0
+ *     ddma_chnl_id < DDMA_MAXDDMACHNLS
+ *     num_desc > 0
  *     pVa != NULL
  *     pDspPa != NULL
  *
  *  Ensures:
  */
-	extern void IO_DDMAInitChnlDesc(struct IO_MGR *hIOMgr, u32 uDDMAChnlId,
-					u32 uNumDesc, void *pDsp);
+extern void io_ddma_init_chnl_desc(struct io_mgr *hio_mgr, u32 ddma_chnl_id,
+				   u32 num_desc, void *dsp);
 
 /*
- *  ======== IO_DDMAClearChnlDesc ========
+ *  ======== io_ddma_clear_chnl_desc ========
  *  Purpose:
  *      Clear DSP DMA channel descriptor.
  *  Parameters:
- *      hIOMgr:         Handle to a I/O manager.
- *      uDDMAChnlId:    DDMA channel identifier.
+ *      hio_mgr:         Handle to a I/O manager.
+ *      ddma_chnl_id:    DDMA channel identifier.
  *  Returns:
  *  Requires:
- *     uDDMAChnlId < DDMA_MAXDDMACHNLS
+ *     ddma_chnl_id < DDMA_MAXDDMACHNLS
  *  Ensures:
  */
-	extern void IO_DDMAClearChnlDesc(struct IO_MGR *hIOMgr,
-					 u32 uDDMAChnlId);
+extern void io_ddma_clear_chnl_desc(struct io_mgr *hio_mgr, u32 ddma_chnl_id);
 
 /*
- *  ======== IO_DDMARequestChnl ========
+ *  ======== io_ddma_request_chnl ========
  *  Purpose:
  *      Request channel DSP-DMA from the DSP. Sets up SM descriptors and
  *      control fields in shared memory.
  *  Parameters:
- *      hIOMgr:     Handle to a I/O manager.
- *      pChnl:      Ptr to channel object
- *      pChirp:     Ptr to channel i/o request packet.
+ *      hio_mgr:     Handle to a I/O manager.
+ *      pchnl:      Ptr to channel object
+ *      chnl_packet_obj:     Ptr to channel i/o request packet.
  *  Returns:
  *  Requires:
- *      pChnl != NULL
- *      pChnl->cIOReqs > 0
- *      pChirp != NULL
+ *      pchnl != NULL
+ *      pchnl->cio_reqs > 0
+ *      chnl_packet_obj != NULL
  *  Ensures:
  */
-	extern void IO_DDMARequestChnl(struct IO_MGR *hIOMgr,
-				       struct CHNL_OBJECT *pChnl,
-				       struct CHNL_IRP *pChirp,
-				       OUT u16 *pwMbVal);
+extern void io_ddma_request_chnl(struct io_mgr *hio_mgr,
+				 struct chnl_object *pchnl,
+				 struct chnl_irp *chnl_packet_obj,
+				 u16 *mbx_val);
 
 /*
  * Zero-copy IO functions
  */
 
 /*
- *  ======== IO_DDZCInitChnlDesc ========
+ *  ======== io_ddzc_init_chnl_desc ========
  *  Purpose:
  *      Initialize ZCPY channel descriptor.
  *  Parameters:
- *      hIOMgr:     Handle to a I/O manager.
- *      uZId:       zero-copy channel identifier.
+ *      hio_mgr:     Handle to a I/O manager.
+ *      zid:        zero-copy channel identifier.
  *  Returns:
  *  Requires:
- *     uDDMAChnlId < DDMA_MAXZCPYCHNLS
- *     hIOMgr != Null
+ *     ddma_chnl_id < DDMA_MAXZCPYCHNLS
+ *     hio_mgr != Null
  *  Ensures:
  */
-	extern void IO_DDZCInitChnlDesc(struct IO_MGR *hIOMgr, u32 uZId);
+extern void io_ddzc_init_chnl_desc(struct io_mgr *hio_mgr, u32 zid);
 
 /*
- *  ======== IO_DDZCClearChnlDesc ========
+ *  ======== io_ddzc_clear_chnl_desc ========
  *  Purpose:
  *      Clear DSP ZC channel descriptor.
  *  Parameters:
- *      hIOMgr:         Handle to a I/O manager.
- *      uChnlId:        ZC channel identifier.
+ *      hio_mgr:         Handle to a I/O manager.
+ *      ch_id:        ZC channel identifier.
  *  Returns:
  *  Requires:
- *      hIOMgr is valid
- *      uChnlId < DDMA_MAXZCPYCHNLS
+ *      hio_mgr is valid
+ *      ch_id < DDMA_MAXZCPYCHNLS
  *  Ensures:
  */
-	extern void IO_DDZCClearChnlDesc(struct IO_MGR *hIOMgr, u32 uChnlId);
+extern void io_ddzc_clear_chnl_desc(struct io_mgr *hio_mgr, u32 ch_id);
 
 /*
- *  ======== IO_DDZCRequestChnl ========
+ *  ======== io_ddzc_request_chnl ========
  *  Purpose:
  *      Request zero-copy channel transfer. Sets up SM descriptors and
  *      control fields in shared memory.
  *  Parameters:
- *      hIOMgr:         Handle to a I/O manager.
- *      pChnl:          Ptr to channel object
- *      pChirp:         Ptr to channel i/o request packet.
+ *      hio_mgr:         Handle to a I/O manager.
+ *      pchnl:          Ptr to channel object
+ *      chnl_packet_obj:         Ptr to channel i/o request packet.
  *  Returns:
  *  Requires:
- *      pChnl != NULL
- *      pChnl->cIOReqs > 0
- *      pChirp != NULL
+ *      pchnl != NULL
+ *      pchnl->cio_reqs > 0
+ *      chnl_packet_obj != NULL
  *  Ensures:
  */
-	extern void IO_DDZCRequestChnl(struct IO_MGR *hIOMgr,
-				       struct CHNL_OBJECT *pChnl,
-				       struct CHNL_IRP *pChirp,
-				       OUT u16 *pwMbVal);
+extern void io_ddzc_request_chnl(struct io_mgr *hio_mgr,
+				 struct chnl_object *pchnl,
+				 struct chnl_irp *chnl_packet_obj,
+				 u16 *mbx_val);
 
 /*
- *  ======== IO_SHMsetting ========
+ *  ======== io_sh_msetting ========
  *  Purpose:
  *      Sets the shared memory setting
  *  Parameters:
- *      hIOMgr:         Handle to a I/O manager.
+ *      hio_mgr:         Handle to a I/O manager.
  *      desc:             Shared memory type
- *      pArgs:          Ptr to SHM setting
+ *      pargs:          Ptr to shm setting
  *  Returns:
  *  Requires:
- *      hIOMgr != NULL
- *      pArgs != NULL
+ *      hio_mgr != NULL
+ *      pargs != NULL
  *  Ensures:
  */
-	extern DSP_STATUS IO_SHMsetting(IN struct IO_MGR *hIOMgr,
-					IN enum SHM_DESCTYPE desc,
-					IN void *pArgs);
+extern int io_sh_msetting(struct io_mgr *hio_mgr, u8 desc, void *pargs);
 
 /*
  *  Misc functions for the CHNL_IO shared memory library:
  */
 
 /* Maximum channel bufsize that can be used. */
-	extern u32 IO_BufSize(struct IO_MGR *hIOMgr);
+extern u32 io_buf_size(struct io_mgr *hio_mgr);
 
-	extern u32 IO_ReadValue(struct WMD_DEV_CONTEXT *hDevContext,
-				  u32 dwDSPAddr);
+extern u32 io_read_value(struct bridge_dev_context *dev_ctxt, u32 dsp_addr);
 
-	extern void IO_WriteValue(struct WMD_DEV_CONTEXT *hDevContext,
-				  u32 dwDSPAddr, u32 dwValue);
+extern void io_write_value(struct bridge_dev_context *dev_ctxt,
+			   u32 dsp_addr, u32 value);
 
-	extern u32 IO_ReadValueLong(struct WMD_DEV_CONTEXT *hDevContext,
-				      u32 dwDSPAddr);
+extern u32 io_read_value_long(struct bridge_dev_context *dev_ctxt,
+			      u32 dsp_addr);
 
-	extern void IO_WriteValueLong(struct WMD_DEV_CONTEXT *hDevContext,
-				      u32 dwDSPAddr, u32 dwValue);
+extern void io_write_value_long(struct bridge_dev_context *dev_ctxt,
+				u32 dsp_addr, u32 value);
 
-	extern void IO_OrSetValue(struct WMD_DEV_CONTEXT *hDevContext,
-				  u32 dwDSPAddr, u32 dwValue);
+extern void io_or_set_value(struct bridge_dev_context *dev_ctxt,
+			    u32 dsp_addr, u32 value);
 
-	extern void IO_AndSetValue(struct WMD_DEV_CONTEXT *hDevContext,
-				   u32 dwDSPAddr, u32 dwValue);
+extern void io_and_set_value(struct bridge_dev_context *dev_ctxt,
+			     u32 dsp_addr, u32 value);
 
-	extern void IO_IntrDSP2(IN struct IO_MGR *pIOMgr, IN u16 wMbVal);
+extern void io_sm_init(void);
 
-       extern void IO_SM_init(void);
-
+#ifdef CONFIG_TIDSPBRIDGE_BACKTRACE
 /*
- *  ========PrintDspTraceBuffer ========
+ *  ========print_dsp_trace_buffer ========
  *      Print DSP tracebuffer.
  */
-       extern DSP_STATUS PrintDspTraceBuffer(struct WMD_DEV_CONTEXT
-                                               *hWmdContext);
+extern int print_dsp_trace_buffer(struct bridge_dev_context
+					 *hbridge_context);
 
-#endif				/* IOSM_ */
+int dump_dsp_stack(struct bridge_dev_context *bridge_context);
+
+void dump_dl_modules(struct bridge_dev_context *bridge_context);
+
+#endif
+#if defined(CONFIG_TIDSPBRIDGE_BACKTRACE) || defined(CONFIG_TIDSPBRIDGE_DEBUG)
+void print_dsp_debug_trace(struct io_mgr *hio_mgr);
+#endif
+
+#endif /* IOSM_ */
