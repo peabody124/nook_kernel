@@ -21,12 +21,12 @@ ccflags-y += -D_TI_ -D_DB_TIOMAP -DTMS32060 \
 		-DTICFG_PROC_VER -DTICFG_EVM_TYPE -DCHNL_SMCLASS \
 		-DCHNL_MESSAGES -DUSE_LEVEL_1_MACROS
 
-ccflags-y += -Idrivers/staging/tidspbridge/include
-ccflags-y += -Idrivers/staging/tidspbridge/services
-ccflags-y += -Idrivers/staging/tidspbridge/core
-ccflags-y += -Idrivers/staging/tidspbridge/pmgr
-ccflags-y += -Idrivers/staging/tidspbridge/rmgr
-ccflags-y += -Idrivers/staging/tidspbridge/dynload
-ccflags-y += -Idrivers/staging/tidspbridge/hw
+ccflags-y += -Idrivers/dsp/bridge/include
+ccflags-y += -Idrivers/dsp/bridge/services
+ccflags-y += -Idrivers/dsp/bridge/core
+ccflags-y += -Idrivers/dsp/bridge/pmgr
+ccflags-y += -Idrivers/dsp/bridge/rmgr
+ccflags-y += -Idrivers/dsp/bridge/dynload
+ccflags-y += -Idrivers/dsp/bridge/hw
 ccflags-y += -Iarch/arm
 
